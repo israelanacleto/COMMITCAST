@@ -40,6 +40,7 @@ public class Worker : BackgroundService
         var repoRepository = scope.ServiceProvider.GetRequiredService<IRepositoryRepository>();
         var postRepository = scope.ServiceProvider.GetRequiredService<IPostRepository>();
         var gitService = scope.ServiceProvider.GetRequiredService<GitService>();
+        var aiService = scope.ServiceProvider.GetRequiredService<AIContentService>();
 
         var repositories = await repoRepository.GetAllActiveAsync();
         _logger.LogInformation("Processing {Count} repositories", repositories.Count);
@@ -79,6 +80,19 @@ public class Worker : BackgroundService
 
                         await postRepository.CreateAsync(post);
                         _logger.LogInformation("Created draft post for commit {Hash} by {Author}", commitInfo.Sha, post.CommitAuthor);
+
+                        // Generate AI content
+                        try
+                        {
+                            var generatedContent = await aiService.GenerateLinkedInPostAsync(post);
+                            post.GeneratedContent = generatedContent;
+                            await postRepository.UpdateAsync(post);
+                            _logger.LogInformation("Generated AI content for post {PostId}", post.Id);
+                        }
+                        catch (Exception aiEx)
+                        {
+                            _logger.LogWarning(aiEx, "Failed to generate AI content for post {PostId}, post saved without content", post.Id);
+                        }
                     }
                     catch (Exception ex)
                     {

@@ -1,5 +1,6 @@
 using CommitCast.Core.Models;
 using CommitCast.Core.Repositories;
+using CommitCast.Core.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CommitCast.API.Controllers;
@@ -59,6 +60,29 @@ public class PostsController : ControllerBase
 
         await _postRepository.UpdateAsync(post);
         return Ok(post);
+    }
+
+    [HttpPost("{id}/generate")]
+    public async Task<ActionResult<Post>> GenerateContent(int id, [FromServices] AIContentService aiService)
+    {
+        var post = await _postRepository.GetByIdAsync(id);
+        if (post == null)
+            return NotFound();
+
+        try
+        {
+            var generatedContent = await aiService.GenerateLinkedInPostAsync(post);
+            post.GeneratedContent = generatedContent;
+            await _postRepository.UpdateAsync(post);
+            
+            _logger.LogInformation("Generated AI content for post {PostId}", post.Id);
+            return Ok(post);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate content for post {PostId}", post.Id);
+            return StatusCode(500, new { error = "Failed to generate content", message = ex.Message });
+        }
     }
 }
 

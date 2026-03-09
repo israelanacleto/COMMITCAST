@@ -12,6 +12,7 @@ builder.Services.AddDbContext<CommitCastDbContext>(options =>
 builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<IRepositoryRepository, RepositoryRepository>();
 builder.Services.AddScoped<GitService>();
+builder.Services.AddScoped<AIContentService>();
 
 builder.Services.AddHostedService<Worker>();
 
