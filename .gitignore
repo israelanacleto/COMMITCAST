@@ -99,3 +99,9 @@ TempRepos/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Environment variables with secrets
+.env.local
+.env.development
+.env.production
+*.env
