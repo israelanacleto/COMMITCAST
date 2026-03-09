@@ -46,6 +46,17 @@ public class RepositoriesController : ControllerBase
 
         return Ok(repo);
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> Delete(int id)
+    {
+        var repo = await _repoRepository.GetByIdAsync(id);
+        if (repo == null)
+            return NotFound();
+
+        await _repoRepository.DeleteAsync(repo);
+        return NoContent();
+    }
 }
 
 public record CreateRepositoryDto

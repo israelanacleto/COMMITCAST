@@ -13,7 +13,7 @@ public class GitService
         _logger = logger;
     }
 
-    public async Task<List<Commit>> GetNewCommitsAsync(MonitoredRepository repo)
+    public async Task<List<CommitInfo>> GetNewCommitsAsync(MonitoredRepository repo)
     {
         try
         {
@@ -28,7 +28,7 @@ public class GitService
             // Pull latest changes
             PullLatestChanges(repository, repo);
 
-            var commits = new List<Commit>();
+            var commits = new List<CommitInfo>();
             var lastCommit = string.IsNullOrEmpty(repo.LastCommitHash) 
                 ? null 
                 : repository.Lookup<Commit>(repo.LastCommitHash);
@@ -38,7 +38,24 @@ public class GitService
                 if (lastCommit != null && commit.Sha == lastCommit.Sha)
                     break;
 
-                commits.Add(commit);
+                try
+                {
+                    // Force load commit data to avoid lazy loading issues
+                    var commitInfo = new CommitInfo
+                    {
+                        Sha = commit.Sha,
+                        Message = commit.MessageShort ?? "[No message]",
+                        Author = commit.Author?.Name ?? commit.Committer?.Name ?? "Unknown",
+                        Date = commit.Author?.When.UtcDateTime ?? commit.Committer?.When.UtcDateTime ?? DateTime.UtcNow
+                    };
+                    
+                    commits.Add(commitInfo);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load commit {Sha}, skipping", commit.Sha);
+                    continue;
+                }
             }
 
             _logger.LogInformation("Found {Count} new commits for repo {RepoUrl}", commits.Count, repo.RepoUrl);

@@ -10,6 +10,7 @@ public interface IRepositoryRepository
     Task<MonitoredRepository?> GetByIdAsync(int id);
     Task<List<MonitoredRepository>> GetAllActiveAsync();
     Task<MonitoredRepository> UpdateAsync(MonitoredRepository repo);
+    Task DeleteAsync(MonitoredRepository repo);
 }
 
 public class RepositoryRepository : IRepositoryRepository
@@ -45,5 +46,11 @@ public class RepositoryRepository : IRepositoryRepository
         _context.MonitoredRepositories.Update(repo);
         await _context.SaveChangesAsync();
         return repo;
+    }
+
+    public async Task DeleteAsync(MonitoredRepository repo)
+    {
+        _context.MonitoredRepositories.Remove(repo);
+        await _context.SaveChangesAsync();
     }
 }

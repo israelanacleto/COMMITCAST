@@ -53,29 +53,41 @@ public class Worker : BackgroundService
             {
                 var commits = await gitService.GetNewCommitsAsync(repo);
 
-                foreach (var commit in commits)
+                // Limit to last 50 commits to avoid overload
+                var commitsToProcess = commits.Take(50).ToList();
+                _logger.LogInformation("Processing {Count} commits from repo {RepoUrl}", commitsToProcess.Count, repo.RepoUrl);
+
+                foreach (var commitInfo in commitsToProcess)
                 {
-                    if (await postRepository.CommitExistsAsync(commit.Sha))
+                    try
                     {
-                        _logger.LogDebug("Commit {Hash} already exists, skipping", commit.Sha);
+                        if (await postRepository.CommitExistsAsync(commitInfo.Sha))
+                        {
+                            _logger.LogDebug("Commit {Hash} already exists, skipping", commitInfo.Sha);
+                            continue;
+                        }
+
+                        var post = new Post
+                        {
+                            RepoUrl = repo.RepoUrl,
+                            CommitHash = commitInfo.Sha,
+                            CommitMessage = commitInfo.Message,
+                            CommitAuthor = commitInfo.Author,
+                            CommitDate = commitInfo.Date,
+                            Status = PostStatus.Draft
+                        };
+
+                        await postRepository.CreateAsync(post);
+                        _logger.LogInformation("Created draft post for commit {Hash} by {Author}", commitInfo.Sha, post.CommitAuthor);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to process commit {Hash}, skipping", commitInfo.Sha);
                         continue;
                     }
-
-                    var post = new Post
-                    {
-                        RepoUrl = repo.RepoUrl,
-                        CommitHash = commit.Sha,
-                        CommitMessage = commit.Message,
-                        CommitAuthor = commit.Author.Name,
-                        CommitDate = commit.Author.When.UtcDateTime,
-                        Status = PostStatus.Draft
-                    };
-
-                    await postRepository.CreateAsync(post);
-                    _logger.LogInformation("Created draft post for commit {Hash}", commit.Sha);
                 }
 
-                repo.LastCommitHash = commits.FirstOrDefault()?.Sha ?? repo.LastCommitHash;
+                repo.LastCommitHash = commitsToProcess.FirstOrDefault()?.Sha ?? repo.LastCommitHash;
                 repo.LastCheckedAt = DateTime.UtcNow;
                 await repoRepository.UpdateAsync(repo);
             }
