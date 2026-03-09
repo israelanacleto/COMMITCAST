@@ -29,7 +29,8 @@ public class RepositoriesController : ControllerBase
     {
         var repo = new MonitoredRepository
         {
-            RepoUrl = dto.RepoUrl
+            RepoUrl = dto.RepoUrl,
+            GitHubToken = dto.GitHubToken
         };
 
         await _repoRepository.CreateAsync(repo);
@@ -50,4 +51,5 @@ public class RepositoriesController : ControllerBase
 public record CreateRepositoryDto
 {
     public required string RepoUrl { get; init; }
+    public string? GitHubToken { get; init; }
 }

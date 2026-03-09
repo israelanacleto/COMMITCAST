@@ -26,7 +26,7 @@ public class GitService
             using var repository = new Repository(repo.LocalPath);
             
             // Pull latest changes
-            PullLatestChanges(repository);
+            PullLatestChanges(repository, repo);
 
             var commits = new List<Commit>();
             var lastCommit = string.IsNullOrEmpty(repo.LastCommitHash) 
@@ -58,22 +58,63 @@ public class GitService
 
         _logger.LogInformation("Cloning repository {RepoUrl} to {Path}", repo.RepoUrl, tempPath);
         
-        await Task.Run(() =>
+        try
         {
-            Repository.Clone(repo.RepoUrl, tempPath);
-        });
+            await Task.Run(() =>
+            {
+                var cloneOptions = new CloneOptions();
+                cloneOptions.FetchOptions.CredentialsProvider = (url, usernameFromUrl, types) =>
+                {
+                    if (!string.IsNullOrEmpty(repo.GitHubToken))
+                    {
+                        _logger.LogDebug("Using GitHub token for authentication");
+                        return new UsernamePasswordCredentials
+                        {
+                            Username = repo.GitHubToken,
+                            Password = string.Empty
+                        };
+                    }
+                    
+                    _logger.LogDebug("No token provided, attempting anonymous access");
+                    return new DefaultCredentials();
+                };
+                
+                Repository.Clone(repo.RepoUrl, tempPath, cloneOptions);
+            });
 
-        repo.LocalPath = tempPath;
+            repo.LocalPath = tempPath;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to clone repository {RepoUrl}. For private repos, add a GitHub Personal Access Token.", repo.RepoUrl);
+            throw;
+        }
     }
 
-    private void PullLatestChanges(Repository repository)
+    private void PullLatestChanges(Repository repository, MonitoredRepository repo)
     {
         try
         {
             var remote = repository.Network.Remotes["origin"];
             var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
             
-            Commands.Fetch(repository, remote.Name, refSpecs, null, "Fetching");
+            var fetchOptions = new FetchOptions
+            {
+                CredentialsProvider = (url, usernameFromUrl, types) =>
+                {
+                    if (!string.IsNullOrEmpty(repo.GitHubToken))
+                    {
+                        return new UsernamePasswordCredentials
+                        {
+                            Username = repo.GitHubToken,
+                            Password = string.Empty
+                        };
+                    }
+                    return new DefaultCredentials();
+                }
+            };
+            
+            Commands.Fetch(repository, remote.Name, refSpecs, fetchOptions, "Fetching");
             
             var trackedBranch = repository.Head.TrackedBranch;
             if (trackedBranch != null)
